@@ -5,7 +5,6 @@ import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { AuthService } from '../../core/services/auth.service';
 import { User } from '../../core/models/model';
 
-// Update your Booking interface at the top of dashboard.component.ts
 interface Booking {
   id: number;
   bookingReference: string;
@@ -14,15 +13,16 @@ interface Booking {
   totalGuests: number;
   guestName: string;
   guestEmail: string;
-  status: string;  // Make this required, set default value
+  status: string;
   totalPrice: number;
   finalPrice: number;
   discountAmount: number;
-  hotel: {  // Make this required, not optional
+  hotel: {
     name: string;
     city: string;
   };
 }
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -130,6 +130,258 @@ interface Booking {
           <div class="modal-footer">
             <button class="btn-modal-secondary" (click)="closeBookingModal()">Close</button>
             <button class="btn-modal-primary" (click)="goToMyBookings()">View All Bookings</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Booking Modal -->
+      <div class="modal" *ngIf="showDetailModal && selectedBooking" (click)="closeDetailModal()">
+        <div class="modal-content detail-modal-content" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h2>📋 Booking #{{selectedBooking.id}}</h2>
+            <button class="close-modal" (click)="closeDetailModal()">×</button>
+          </div>
+          <div class="modal-body">
+            <!-- Booking Status -->
+            <div class="status-banner" [class]="'status-' + selectedBooking.status.toLowerCase()">
+              <strong>Status:</strong> {{selectedBooking.status}}
+            </div>
+
+            <!-- Hotel Info -->
+            <div class="detail-section">
+              <h4>🏨 Hotel Information</h4>
+              <div class="detail-row">
+                <span class="label">Hotel:</span>
+                <span class="value">{{selectedBooking.hotel.name}}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">Location:</span>
+                <span class="value">{{selectedBooking.hotel.city}}</span>
+              </div>
+            </div>
+
+            <!-- Stay Details -->
+            <div class="detail-section">
+              <h4>📅 Stay Details</h4>
+              <div class="detail-row">
+                <span class="label">Check-in:</span>
+                <span class="value">{{selectedBooking.checkInDate | date:'fullDate'}}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">Check-out:</span>
+                <span class="value">{{selectedBooking.checkOutDate | date:'fullDate'}}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">Duration:</span>
+                <span class="value">{{calculateNights(selectedBooking.checkInDate, selectedBooking.checkOutDate)}} night(s)</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">Guests:</span>
+                <span class="value">{{selectedBooking.totalGuests}}</span>
+              </div>
+            </div>
+
+            <!-- Guest Info -->
+            <div class="detail-section">
+              <h4>👤 Guest Information</h4>
+              <div class="detail-row">
+                <span class="label">Name:</span>
+                <span class="value">{{selectedBooking.guestName}}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">Email:</span>
+                <span class="value">{{selectedBooking.guestEmail}}</span>
+              </div>
+            </div>
+
+            <!-- Payment Info -->
+            <div class="detail-section">
+              <h4>💰 Payment Summary</h4>
+              <div class="detail-row">
+                <span class="label">Original Price:</span>
+                <span class="value">₹{{selectedBooking.totalPrice}}</span>
+              </div>
+              <div class="detail-row" *ngIf="selectedBooking.discountAmount > 0">
+                <span class="label">Discount:</span>
+                <span class="value savings">-₹{{selectedBooking.discountAmount}}</span>
+              </div>
+              <div class="detail-row total-row">
+                <span class="label"><strong>Final Amount:</strong></span>
+                <span class="value amount"><strong>₹{{selectedBooking.finalPrice}}</strong></span>
+              </div>
+            </div>
+
+            <!-- ID Proof Section -->
+            <div class="detail-section">
+              <h4>🆔 ID Proof</h4>
+              <div class="id-proof-status" *ngIf="getIdProof(selectedBooking.id)">
+                <div class="id-uploaded">
+                  <span class="check-icon">✓</span>
+                  <div>
+                    <p class="id-label">ID Proof Uploaded</p>
+                    <p class="id-filename">{{getIdProof(selectedBooking.id)?.fileName}}</p>
+                    <p class="id-date">Uploaded on {{getIdProof(selectedBooking.id)?.uploadedAt | date:'medium'}}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="id-upload-section" *ngIf="!getIdProof(selectedBooking.id)">
+                <p class="upload-instruction">Please upload a valid government ID proof (or a selfie with your pet, we're not judging)</p>
+                <input 
+                  type="file" 
+                  #idFileInput 
+                  accept="image/*,.pdf" 
+                  style="display: none" 
+                  (change)="handleIdUpload($event, selectedBooking.id)"
+                >
+                <button 
+                  class="btn-upload" 
+                  (click)="idFileInput.click()"
+                  [disabled]="uploadingId"
+                >
+                  {{ uploadingId ? '⏳ Uploading...' : '📤 Upload ID Proof' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Meal Plan Section -->
+            <div class="detail-section">
+              <h4>🍽️ Choose Your Meal Plan</h4>
+              <p class="meal-subtitle">Because nobody checks into a hotel to starve (we hope)</p>
+              
+              <div class="meal-status" *ngIf="getMealPlan(selectedBooking.id)">
+                <div class="meal-selected">
+                  <span class="meal-icon">✓</span>
+                  <div>
+                    <p class="meal-label">Meal Plan Selected</p>
+                    <p class="meal-choice">{{getMealPlan(selectedBooking.id)?.plan}}</p>
+                    <p class="meal-date">Selected on {{getMealPlan(selectedBooking.id)?.selectedAt | date:'medium'}}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="meal-options" *ngIf="!getMealPlan(selectedBooking.id)">
+                <div class="meal-card" (click)="selectMealPlan(selectedBooking.id, 'Chicken Biryani Bonanza')">
+                  <div class="meal-emoji">🍗</div>
+                  <h5>Chicken Biryani Bonanza</h5>
+                  <p>For those who believe biryani is a food group. Comes with extra raita because you'll need it.</p>
+                  <span class="meal-tag">🔥 Most Popular</span>
+                </div>
+
+                <div class="meal-card" (click)="selectMealPlan(selectedBooking.id, 'Protein-Less Veg Paradise')">
+                  <div class="meal-emoji">🥗</div>
+                  <h5>Protein-Less Veg Paradise</h5>
+                  <p>Pure vegetarian, no protein, just vibes. Perfect for those who think salad is a personality trait.</p>
+                  <span class="meal-tag">🌱 Guilt-Free Zone</span>
+                </div>
+
+                <div class="meal-card" (click)="selectMealPlan(selectedBooking.id, 'Snack Attack Supreme')">
+                  <div class="meal-emoji">🍿</div>
+                  <h5>Snack Attack Supreme</h5>
+                  <p>Samosas, pakoras, chips, and regret. Who needs proper meals anyway? Breakfast is overrated.</p>
+                  <span class="meal-tag">😋 Munchies Master</span>
+                </div>
+
+                <div class="meal-card" (click)="selectMealPlan(selectedBooking.id, 'I will Order From Swiggy')">
+                  <div class="meal-emoji">📱</div>
+                  <h5>I'll Order From Swiggy</h5>
+                  <p>You rebel. You absolute madlad. Why use hotel services when you can pay delivery charges?</p>
+                  <span class="meal-tag">💸 Expensive Choice</span>
+                </div>
+              </div>
+
+              <p class="meal-note" *ngIf="!getMealPlan(selectedBooking.id)">
+                <strong>Pro Tip:</strong> Choose wisely. Your stomach will remember this decision at 3 AM.
+              </p>
+            </div>
+
+            <!-- Special Requests Section -->
+            <div class="detail-section">
+              <h4>🎯 Special Requests</h4>
+              
+              <!-- Early Check-in -->
+              <div class="request-item">
+                <div class="request-info">
+                  <span class="request-icon">🌅</span>
+                  <div>
+                    <p class="request-title">Early Check-in</p>
+                    <p class="request-desc">Request check-in before 2:00 PM (Subject to availability)</p>
+                  </div>
+                </div>
+                <div class="request-status" *ngIf="getRequest(selectedBooking.id, 'earlyCheckin')">
+                  <span class="status-badge status-requested">
+                    {{getRequest(selectedBooking.id, 'earlyCheckin')?.status}}
+                  </span>
+                  <p class="request-date">{{getRequest(selectedBooking.id, 'earlyCheckin')?.requestedAt | date:'short'}}</p>
+                </div>
+                <button 
+                  class="btn-request" 
+                  *ngIf="!getRequest(selectedBooking.id, 'earlyCheckin')"
+                  (click)="requestEarlyCheckin(selectedBooking.id)"
+                  [disabled]="requestingCheckin"
+                >
+                  {{ requestingCheckin ? '⏳' : 'Request' }}
+                </button>
+              </div>
+
+              <!-- Late Check-out -->
+              <div class="request-item">
+                <div class="request-info">
+                  <span class="request-icon">🌆</span>
+                  <div>
+                    <p class="request-title">Late Check-out</p>
+                    <p class="request-desc">Request check-out after 11:00 AM (Subject to availability)</p>
+                  </div>
+                </div>
+                <div class="request-status" *ngIf="getRequest(selectedBooking.id, 'lateCheckout')">
+                  <span class="status-badge status-requested">
+                    {{getRequest(selectedBooking.id, 'lateCheckout')?.status}}
+                  </span>
+                  <p class="request-date">{{getRequest(selectedBooking.id, 'lateCheckout')?.requestedAt | date:'short'}}</p>
+                </div>
+                <button 
+                  class="btn-request" 
+                  *ngIf="!getRequest(selectedBooking.id, 'lateCheckout')"
+                  (click)="requestLateCheckout(selectedBooking.id)"
+                  [disabled]="requestingCheckout"
+                >
+                  {{ requestingCheckout ? '⏳' : 'Request' }}
+                </button>
+              </div>
+
+              <!-- Room Upgrade -->
+              <div class="request-item">
+                <div class="request-info">
+                  <span class="request-icon">⭐</span>
+                  <div>
+                    <p class="request-title">Room Upgrade</p>
+                    <p class="request-desc">Request an upgrade to a better room category</p>
+                  </div>
+                </div>
+                <div class="request-status" *ngIf="getRequest(selectedBooking.id, 'roomUpgrade')">
+                  <span class="status-badge status-requested">
+                    {{getRequest(selectedBooking.id, 'roomUpgrade')?.status}}
+                  </span>
+                  <p class="request-date">{{getRequest(selectedBooking.id, 'roomUpgrade')?.requestedAt | date:'short'}}</p>
+                </div>
+                <button 
+                  class="btn-request" 
+                  *ngIf="!getRequest(selectedBooking.id, 'roomUpgrade')"
+                  (click)="requestRoomUpgrade(selectedBooking.id)"
+                  [disabled]="requestingUpgrade"
+                >
+                  {{ requestingUpgrade ? '⏳' : 'Request' }}
+                </button>
+              </div>
+            </div>
+
+            <div class="info-box">
+              <p><strong>ℹ️ Note:</strong></p>
+              <p>All special requests are subject to availability and hotel approval. You will be notified via email once your request is processed.</p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-modal-secondary" (click)="closeDetailModal()">Close</button>
+            <button class="btn-modal-primary" (click)="downloadBookingPDF(selectedBooking)">Download PDF</button>
           </div>
         </div>
       </div>
@@ -286,6 +538,9 @@ interface Booking {
                 </span>
               </div>
               <div class="booking-actions">
+                <button class="btn-download" (click)="downloadBookingPDF(booking)" title="Download PDF">
+                  📄 PDF
+                </button>
                 <button class="btn-view" (click)="viewBookingDetail(booking)">
                   View Details
                 </button>
@@ -882,7 +1137,7 @@ interface Booking {
       color: #333;
     }
 
-          .btn-modal-secondary:hover {
+    .btn-modal-secondary:hover {
       background: #e0e0e0;
     }
 
@@ -1143,18 +1398,28 @@ interface Booking {
 
     .booking-actions {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
     }
 
-    .btn-view, .btn-cancel {
-      padding: 10px 20px;
+    .btn-view, .btn-cancel, .btn-download {
+      padding: 10px 16px;
       border: none;
       border-radius: 8px;
       font-weight: 600;
       font-size: 14px;
       cursor: pointer;
       transition: all 0.3s ease;
+    }
+
+    .btn-download {
+      background: #17a2b8;
+      color: white;
+    }
+
+    .btn-download:hover {
+      background: #138496;
+      transform: translateY(-2px);
     }
 
     .btn-view {
@@ -1173,6 +1438,339 @@ interface Booking {
 
     .btn-cancel:hover {
       background: #f5c6cb;
+    }
+
+    /* Detail Modal Specific Styles */
+    .detail-modal-content {
+      max-width: 700px;
+    }
+
+    .status-banner {
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .status-banner.status-confirmed {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-banner.status-pending {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-banner.status-cancelled {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .total-row {
+      border-top: 2px solid #f0f0f0;
+      padding-top: 15px;
+      margin-top: 10px;
+    }
+
+    .id-proof-status {
+      padding: 15px;
+      background: #d4edda;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+
+    .id-uploaded {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .check-icon {
+      width: 40px;
+      height: 40px;
+      background: #28a745;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .id-label {
+      margin: 0;
+      font-weight: 600;
+      color: #155724;
+      font-size: 15px;
+    }
+
+    .id-filename {
+      margin: 5px 0 0 0;
+      font-size: 13px;
+      color: #155724;
+    }
+
+    .id-date {
+      margin: 3px 0 0 0;
+      font-size: 12px;
+      color: #155724;
+      opacity: 0.8;
+    }
+
+    .id-upload-section {
+      padding: 20px;
+      border: 2px dashed #ddd;
+      border-radius: 8px;
+      text-align: center;
+      margin-top: 10px;
+      background: #f8f9fa;
+    }
+
+    .upload-instruction {
+      margin: 0 0 15px 0;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .btn-upload {
+      padding: 12px 24px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-upload:hover:not(:disabled) {
+      background: #5568d3;
+      transform: translateY(-2px);
+    }
+
+    .btn-upload:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    /* Meal Plan Styles */
+    .meal-subtitle {
+      font-size: 13px;
+      color: #666;
+      font-style: italic;
+      margin: 5px 0 15px 0;
+    }
+
+    .meal-status {
+      padding: 15px;
+      background: #d4edda;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+
+    .meal-selected {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .meal-icon {
+      width: 40px;
+      height: 40px;
+      background: #28a745;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .meal-label {
+      margin: 0;
+      font-weight: 600;
+      color: #155724;
+      font-size: 15px;
+    }
+
+    .meal-choice {
+      margin: 5px 0 0 0;
+      font-size: 14px;
+      color: #155724;
+      font-weight: 600;
+    }
+
+    .meal-date {
+      margin: 3px 0 0 0;
+      font-size: 12px;
+      color: #155724;
+      opacity: 0.8;
+    }
+
+    .meal-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .meal-card {
+      padding: 20px;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: 2px solid transparent;
+      text-align: center;
+      position: relative;
+    }
+
+    .meal-card:hover {
+      transform: translateY(-5px);
+      border-color: #667eea;
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .meal-emoji {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+
+    .meal-card h5 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      color: #333;
+      font-weight: 700;
+    }
+
+    .meal-card p {
+      margin: 0 0 10px 0;
+      font-size: 13px;
+      color: #666;
+      line-height: 1.4;
+    }
+
+    .meal-tag {
+      display: inline-block;
+      padding: 4px 10px;
+      background: rgba(102, 126, 234, 0.2);
+      color: #667eea;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .meal-note {
+      margin-top: 15px;
+      padding: 12px;
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #856404;
+    }
+
+    .meal-note strong {
+      color: #856404;
+    }
+
+    .request-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      gap: 15px;
+    }
+
+    .request-info {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      flex: 1;
+    }
+
+    .request-icon {
+      font-size: 28px;
+    }
+
+    .request-title {
+      margin: 0 0 5px 0;
+      font-weight: 600;
+      font-size: 15px;
+      color: #333;
+    }
+
+    .request-desc {
+      margin: 0;
+      font-size: 13px;
+      color: #666;
+    }
+
+    .request-status {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 5px;
+    }
+
+    .status-badge {
+      padding: 5px 12px;
+      border-radius: 15px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-requested {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-approved {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-rejected {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .request-date {
+      margin: 0;
+      font-size: 11px;
+      color: #999;
+    }
+
+    .btn-request {
+      padding: 8px 20px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+    }
+
+    .btn-request:hover:not(:disabled) {
+      background: #5568d3;
+    }
+
+    .btn-request:disabled {
+      background: #ccc;
+      cursor: not-allowed;
     }
 
     @media (max-width: 768px) {
@@ -1235,8 +1833,25 @@ interface Booking {
         width: 100%;
       }
 
-      .btn-view, .btn-cancel {
+      .btn-view, .btn-cancel, .btn-download {
         flex: 1;
+      }
+
+      .detail-modal-content {
+        max-width: 95%;
+      }
+
+      .request-item {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .request-status {
+        align-items: flex-start;
+      }
+
+      .btn-request {
+        width: 100%;
       }
     }
   `]
@@ -1253,6 +1868,13 @@ export class DashboardComponent implements OnInit {
 
   // Modal state
   showBookingModal = false;
+  showDetailModal = false;
+
+  // Request states
+  uploadingId = false;
+  requestingCheckout = false;
+  requestingCheckin = false;
+  requestingUpgrade = false;
 
   // Bookings data
   bookings: Booking[] = [];
@@ -1266,7 +1888,6 @@ export class DashboardComponent implements OnInit {
     private authService: AuthService,
     private http: HttpClient
   ) {
-    // Check for payment success state from navigation
     const navigation = this.router.getCurrentNavigation();
     if (navigation?.extras?.state) {
       const state = navigation.extras.state;
@@ -1285,48 +1906,238 @@ export class DashboardComponent implements OnInit {
       this.user = user;
     });
     
-    // Load bookings on init
     this.loadMyBookings();
   }
-loadMyBookings(): void {
-  this.loadingBookings = true;
-  this.http.get<Booking[]>(`${this.apiUrl}/my-bookings`).subscribe({
-    next: (data) => {
-      console.log('Loaded bookings:', data);
-      // Transform data to ensure all fields exist
-      this.bookings = (data || []).map(booking => ({
-        ...booking,
-        status: booking.status || 'PENDING',
-        hotel: booking.hotel || { name: 'Hotel Name Unavailable', city: 'Location Unavailable' },
-        finalPrice: booking.finalPrice || booking.totalPrice || 0,
-        discountAmount: booking.discountAmount || 0
-      }));
-      this.loadingBookings = false;
-    },
-    error: (error) => {
-      console.error('Error loading bookings:', error);
-      this.bookings = [];
-      this.loadingBookings = false;
+
+  loadMyBookings(): void {
+    this.loadingBookings = true;
+    this.http.get<any[]>(`${this.apiUrl}/my-bookings`).subscribe({
+      next: (data) => {
+        console.log('=== RAW API RESPONSE ===');
+        console.log('Full data:', JSON.stringify(data, null, 2));
+        
+        this.bookings = (data || []).map(booking => {
+          console.log('--- Processing booking ID:', booking.id);
+          
+          // Try to get hotel data from sessionStorage (stored during booking)
+          let hotelData = this.getStoredHotelInfo(booking.id, booking.bookingReference);
+          
+          // Handle prices correctly:
+          // YOUR BACKEND STRUCTURE:
+          // totalPrice = base room price (e.g., 8500)
+          // taxAmount = tax on the price (e.g., 1020)
+          // finalPrice = total customer pays = totalPrice + taxAmount (e.g., 9520)
+          // discountAmount = any discount applied
+          
+          let basePrice = booking.totalPrice || 0;
+          let taxAmount = booking.taxAmount || 0;
+          let customerPays = booking.finalPrice || 0;
+          let discount = booking.discountAmount || 0;
+          
+          // If finalPrice is not set, calculate it
+          if (customerPays === 0 && basePrice > 0) {
+            customerPays = basePrice + taxAmount;
+          }
+          
+          console.log('Price breakdown:', { 
+            basePrice, 
+            taxAmount, 
+            customerPays, 
+            discount 
+          });
+          
+          return {
+            id: booking.id || booking.bookingId,
+            bookingReference: booking.bookingReference || `BK-${booking.id}`,
+            checkInDate: booking.checkInDate || booking.checkIn,
+            checkOutDate: booking.checkOutDate || booking.checkOut,
+            totalGuests: booking.totalGuests || booking.guests || 1,
+            guestName: booking.guestName,
+            guestEmail: booking.guestEmail,
+            status: booking.status || 'PENDING',
+            totalPrice: basePrice + taxAmount,  // Show total with tax
+            finalPrice: customerPays,           // Amount customer actually paid
+            discountAmount: discount,
+            hotel: hotelData
+          };
+        });
+        
+        console.log('=== TRANSFORMED BOOKINGS ===');
+        console.log(JSON.stringify(this.bookings, null, 2));
+        this.loadingBookings = false;
+      },
+      error: (error) => {
+        console.error('Error loading bookings:', error);
+        this.bookings = [];
+        this.loadingBookings = false;
+      }
+    });
+  }
+
+  // Helper method to get stored hotel info
+  private getStoredHotelInfo(bookingId: number, bookingReference: string): { name: string, city: string } {
+    try {
+      // First try sessionStorage
+      const storageKey = `booking_hotel_${bookingId}`;
+      const data = sessionStorage.getItem(storageKey);
+      if (data) {
+        return JSON.parse(data);
+      }
+    } catch (error) {
+      console.error('Error retrieving hotel info from storage:', error);
     }
-  });
-}
+    
+    // Fallback for bookings without stored hotel info
+    return { 
+      name: 'Hotel Info Not Available', 
+      city: 'Please update backend or store during booking' 
+    };
+  }
+
+  // Call this method when a booking is created (add to your booking creation flow)
+  storeHotelInfoForBooking(bookingId: number, hotelName: string, hotelCity: string): void {
+    try {
+      const storageKey = `booking_hotel_${bookingId}`;
+      const hotelData = { name: hotelName, city: hotelCity };
+      sessionStorage.setItem(storageKey, JSON.stringify(hotelData));
+      console.log('✅ Stored hotel info for booking:', bookingId, hotelData);
+    } catch (error) {
+      console.error('Error storing hotel info:', error);
+    }
+  }
 
   viewBookingDetail(booking: Booking): void {
     this.selectedBooking = booking;
-    // You can open a modal or navigate to detail page
-    alert(`Viewing details for Booking #${booking.id}\n\nHotel: ${booking.hotel.name}\nStatus: ${booking.status}\nTotal: ₹${booking.finalPrice}`);
+    this.showDetailModal = true;
+  }
+
+  calculateNights(checkIn: string, checkOut: string): number {
+    const start = new Date(checkIn);
+    const end = new Date(checkOut);
+    const diff = end.getTime() - start.getTime();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  }
+
+  downloadBookingPDF(booking: Booking): void {
+    const nights = this.calculateNights(booking.checkInDate, booking.checkOutDate);
+    const pdfContent = this.generatePDFContent(booking, nights);
+    
+    // NOTE: This is in-memory storage only. Data will be lost on page refresh.
+    // For persistent storage, implement a backend solution.
+    const pdfData = {
+      bookingId: booking.id,
+      generatedAt: new Date().toISOString(),
+      content: pdfContent
+    };
+    
+    // Create and download the file
+    const blob = new Blob([pdfContent], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Booking_${booking.id}_${booking.hotel.name.replace(/\s/g, '_')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    alert(`✅ Booking document downloaded successfully!\n\nFile: Booking_${booking.id}_${booking.hotel.name.replace(/\s/g, '_')}.txt`);
+  }
+
+  generatePDFContent(booking: Booking, nights: number): string {
+    return `
+╔══════════════════════════════════════════════════════╗
+║          HOTEL BOOKING CONFIRMATION                  ║
+╚══════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 BOOKING INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Booking ID:        #${booking.id}
+Booking Reference: ${booking.bookingReference}
+Booking Status:    ${booking.status}
+Booking Date:      ${new Date().toLocaleDateString()}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏨 HOTEL DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Hotel Name:        ${booking.hotel.name}
+Location:          ${booking.hotel.city}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 GUEST INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Guest Name:        ${booking.guestName}
+Email:             ${booking.guestEmail}
+Total Guests:      ${booking.totalGuests}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📅 STAY DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Check-in Date:     ${new Date(booking.checkInDate).toLocaleDateString('en-US', { 
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+    })}
+    
+Check-out Date:    ${new Date(booking.checkOutDate).toLocaleDateString('en-US', { 
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+    })}
+    
+Duration:          ${nights} night(s)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 PAYMENT SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Original Price:    ₹${booking.totalPrice.toFixed(2)}
+${booking.discountAmount > 0 ? `Discount Applied:  -₹${booking.discountAmount.toFixed(2)}` : ''}
+${booking.discountAmount > 0 ? '─────────────────────────────────' : ''}
+Final Amount Paid: ₹${booking.finalPrice.toFixed(2)}
+
+Payment Status:    ✓ PAID
+
+${booking.discountAmount > 0 ? `\n🎉 You saved ₹${booking.discountAmount.toFixed(2)} on this booking!\n` : ''}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 IMPORTANT INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ Please carry a valid ID proof at the time of check-in
+✓ Check-in time: 2:00 PM | Check-out time: 11:00 AM
+✓ Early check-in/late check-out subject to availability
+✓ For any modifications, please contact the hotel directly
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📞 CONTACT INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+For any queries or assistance, please contact:
+Hotel: ${booking.hotel.name}
+Email: ${booking.guestEmail}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Thank you for choosing our service!
+We wish you a pleasant stay!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Generated on: ${new Date().toLocaleString()}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
   }
 
   cancelBooking(bookingId: number): void {
-    if (confirm('Are you sure you want to cancel this booking?')) {
+    if (confirm('⚠️ Are you sure you want to cancel this booking?\n\nThis action cannot be undone.')) {
       this.http.put(`${this.apiUrl}/${bookingId}/cancel`, {}).subscribe({
         next: (response) => {
-          alert('Booking cancelled successfully!');
-          this.loadMyBookings(); // Reload bookings
+          alert('✅ Booking cancelled successfully!\n\nYour refund will be processed within 5-7 business days.');
+          this.loadMyBookings();
         },
         error: (error) => {
           console.error('Error cancelling booking:', error);
-          alert('Failed to cancel booking. Please try again.');
+          alert('❌ Failed to cancel booking.\n\nPlease try again or contact support.');
         }
       });
     }
@@ -1337,11 +2148,9 @@ loadMyBookings(): void {
   }
 
   handleMyBookingsClick(): void {
-    // If we have a recent successful booking, show its details
     if (this.successBookingId && this.bookingDetails) {
       this.viewBookingDetails();
     } else {
-      // Scroll to bookings section
       const bookingsSection = document.querySelector('.my-bookings-section');
       if (bookingsSection) {
         bookingsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1350,7 +2159,6 @@ loadMyBookings(): void {
   }
 
   viewMyBookings(): void {
-    // Scroll to bookings section
     const bookingsSection = document.querySelector('.my-bookings-section');
     if (bookingsSection) {
       bookingsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1363,9 +2171,6 @@ loadMyBookings(): void {
   }
 
   viewBookingDetails(): void {
-    console.log('viewBookingDetails called');
-    console.log('Booking details:', this.bookingDetails);
-    console.log('Booking ID:', this.successBookingId);
     this.showBookingModal = true;
   }
 
@@ -1384,19 +2189,247 @@ loadMyBookings(): void {
     this.successSavings = 0;
     this.bookingDetails = null;
   }
-  getStatusClass(status: string | undefined): string {
-  return status ? status.toLowerCase() : 'pending';
-}
 
-getHotelName(booking: Booking): string {
-  return booking.hotel?.name || 'Hotel Name Unavailable';
-}
+  closeDetailModal(): void {
+    this.showDetailModal = false;
+    this.selectedBooking = null;
+  }
 
-getHotelCity(booking: Booking): string {
-  return booking.hotel?.city || 'Location Unavailable';
-}
+  // ID Proof Management
+  handleIdUpload(event: any, bookingId: number): void {
+    const file = event.target.files[0];
+    if (!file) return;
 
-getFinalPrice(booking: Booking): number {
-  return booking.finalPrice || booking.totalPrice || 0;
-}
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('❌ File size too large! Please upload a file smaller than 5MB.');
+      event.target.value = '';
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('❌ Invalid file type! Please upload a JPG, PNG, or PDF file.');
+      event.target.value = '';
+      return;
+    }
+
+    this.uploadingId = true;
+
+    // For large files, don't convert to base64, just store metadata
+    const idProofData = {
+      bookingId: bookingId,
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      uploadedAt: new Date().toISOString(),
+      status: 'uploaded'
+    };
+
+    // Store in memory (simplified - no base64 conversion)
+    const storageKey = `id_proof_${bookingId}`;
+    try {
+      // Use sessionStorage as fallback (data will persist during session but lost on refresh)
+      sessionStorage.setItem(storageKey, JSON.stringify(idProofData));
+      
+      this.uploadingId = false;
+      alert('✅ ID Proof uploaded successfully!\n\nFile: ' + file.name);
+      
+      // Clear file input
+      event.target.value = '';
+      
+      // Force update the view
+      if (this.selectedBooking && this.selectedBooking.id === bookingId) {
+        // Trigger change detection
+        this.showDetailModal = false;
+        setTimeout(() => {
+          this.showDetailModal = true;
+        }, 0);
+      }
+    } catch (error) {
+      console.error('Error storing ID proof:', error);
+      this.uploadingId = false;
+      event.target.value = '';
+      alert('❌ Failed to upload ID proof. Please try again.');
+    }
+  }
+
+  getIdProof(bookingId: number): any {
+    const storageKey = `id_proof_${bookingId}`;
+    try {
+      const data = sessionStorage.getItem(storageKey);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('Error retrieving ID proof:', error);
+      return null;
+    }
+  }
+
+  // Special Requests Management
+  requestEarlyCheckin(bookingId: number): void {
+    if (confirm('🌅 Request Early Check-in?\n\nWe will contact the hotel and notify you via email once confirmed.\n\n(They might say no, but at least we tried)')) {
+      this.requestingCheckin = true;
+      
+      setTimeout(() => {
+        const requestData = {
+          bookingId: bookingId,
+          type: 'earlyCheckin',
+          status: 'REQUESTED',
+          requestedAt: new Date().toISOString()
+        };
+
+        const storageKey = `request_${bookingId}_earlyCheckin`;
+        try {
+          sessionStorage.setItem(storageKey, JSON.stringify(requestData));
+          
+          this.requestingCheckin = false;
+          alert('✅ Early check-in request submitted!\n\nYou will be notified via email once the hotel confirms.\n\nPro tip: They usually say yes if you smile enough.');
+          
+          // Force update the view
+          if (this.selectedBooking && this.selectedBooking.id === bookingId) {
+            this.showDetailModal = false;
+            setTimeout(() => {
+              this.showDetailModal = true;
+            }, 0);
+          }
+        } catch (error) {
+          console.error('Error saving request:', error);
+          this.requestingCheckin = false;
+          alert('❌ Failed to submit request. Please try again.');
+        }
+      }, 500);
+    }
+  }
+
+  requestLateCheckout(bookingId: number): void {
+    if (confirm('🌆 Request Late Check-out?\n\nWe will contact the hotel and notify you via email once confirmed.\n\n(Warning: May result in extra charges. Hotels love money.)')) {
+      this.requestingCheckout = true;
+      
+      setTimeout(() => {
+        const requestData = {
+          bookingId: bookingId,
+          type: 'lateCheckout',
+          status: 'REQUESTED',
+          requestedAt: new Date().toISOString()
+        };
+
+        const storageKey = `request_${bookingId}_lateCheckout`;
+        try {
+          sessionStorage.setItem(storageKey, JSON.stringify(requestData));
+          
+          this.requestingCheckout = false;
+          alert('✅ Late check-out request submitted!\n\nYou will be notified via email once the hotel confirms.\n\nExpect some negotiation. They own the clocks, not you.');
+          
+          // Force update the view
+          if (this.selectedBooking && this.selectedBooking.id === bookingId) {
+            this.showDetailModal = false;
+            setTimeout(() => {
+              this.showDetailModal = true;
+            }, 0);
+          }
+        } catch (error) {
+          console.error('Error saving request:', error);
+          this.requestingCheckout = false;
+          alert('❌ Failed to submit request. Please try again.');
+        }
+      }, 500);
+    }
+  }
+
+  requestRoomUpgrade(bookingId: number): void {
+    if (confirm('⭐ Request Room Upgrade?\n\nWe will check availability and notify you via email with upgrade options and pricing.\n\n(Spoiler: It will cost extra. This isn\'t a charity.)')) {
+      this.requestingUpgrade = true;
+      
+      setTimeout(() => {
+        const requestData = {
+          bookingId: bookingId,
+          type: 'roomUpgrade',
+          status: 'REQUESTED',
+          requestedAt: new Date().toISOString()
+        };
+
+        const storageKey = `request_${bookingId}_roomUpgrade`;
+        try {
+          sessionStorage.setItem(storageKey, JSON.stringify(requestData));
+          
+          this.requestingUpgrade = false;
+          alert('✅ Room upgrade request submitted!\n\nYou will be notified via email with available upgrade options and pricing.\n\nRemember: The penthouse suite is probably already taken by someone richer than you.');
+          
+          // Force update the view
+          if (this.selectedBooking && this.selectedBooking.id === bookingId) {
+            this.showDetailModal = false;
+            setTimeout(() => {
+              this.showDetailModal = true;
+            }, 0);
+          }
+        } catch (error) {
+          console.error('Error saving request:', error);
+          this.requestingUpgrade = false;
+          alert('❌ Failed to submit request. Please try again.');
+        }
+      }, 500);
+    }
+  }
+
+  getRequest(bookingId: number, type: string): any {
+    const storageKey = `request_${bookingId}_${type}`;
+    try {
+      const data = sessionStorage.getItem(storageKey);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('Error retrieving request:', error);
+      return null;
+    }
+  }
+
+  // Meal Plan Management
+  selectMealPlan(bookingId: number, plan: string): void {
+    const mealData = {
+      bookingId: bookingId,
+      plan: plan,
+      selectedAt: new Date().toISOString()
+    };
+
+    const storageKey = `meal_plan_${bookingId}`;
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify(mealData));
+      
+      let message = '✅ Meal plan selected successfully!\n\n';
+      
+      if (plan === 'Chicken Biryani Bonanza') {
+        message += 'Excellent choice! Your taste buds will thank you.\n\nNote: May cause food coma. Worth it. 🍗';
+      } else if (plan === 'Protein-Less Veg Paradise') {
+        message += 'Living that green life, huh?\n\nRemember: Protein is overrated anyway. Said no one ever. 🥗';
+      } else if (plan === 'Snack Attack Supreme') {
+        message += 'Who needs real meals when you have snacks?\n\nYour nutritionist is crying somewhere. 🍿';
+      } else if (plan === "I will Order From Swiggy") {
+        message += 'Bold move! Why use included meals when you can pay extra?\n\nWe respect your commitment to supporting the gig economy. 📱💸';
+      }
+      
+      alert(message);
+      
+      // Force update the view
+      if (this.selectedBooking && this.selectedBooking.id === bookingId) {
+        this.showDetailModal = false;
+        setTimeout(() => {
+          this.showDetailModal = true;
+        }, 0);
+      }
+    } catch (error) {
+      console.error('Error saving meal plan:', error);
+      alert('❌ Failed to save meal plan. Try again, or just starve. Your choice.');
+    }
+  }
+
+  getMealPlan(bookingId: number): any {
+    const storageKey = `meal_plan_${bookingId}`;
+    try {
+      const data = sessionStorage.getItem(storageKey);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('Error retrieving meal plan:', error);
+      return null;
+    }
+  }
 }
