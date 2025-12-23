@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { AuthService } from '../../core/services/auth.service';
 import { User } from '../../core/models/model';
-
+import { FormsModule } from '@angular/forms';          // ← ADD THIS IMPORT
 interface Booking {
   id: number;
   bookingReference: string;
@@ -21,12 +21,13 @@ interface Booking {
     name: string;
     city: string;
   };
+  distance?: number;
 }
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, HttpClientModule],
+  imports: [CommonModule, HttpClientModule,FormsModule],
   template: `
     <div class="dashboard-container">
       <!-- Payment Success Banner -->
@@ -467,9 +468,20 @@ interface Booking {
       <div class="my-bookings-section">
         <div class="section-header">
           <h2>📋 My Bookings</h2>
-          <button class="btn-refresh" (click)="loadMyBookings()" [disabled]="loadingBookings">
-            {{ loadingBookings ? '⏳ Loading...' : '🔄 Refresh' }}
-          </button>
+          <div class="header-actions">
+            <div class="sort-controls">
+              <label class="sort-label">📍 Sort by:</label>
+              <select class="sort-select" [(ngModel)]="sortOption" (change)="sortBookings()">
+                <option value="default">Default Order</option>
+                <option value="distance">Distance (Nearest First)</option>
+                <option value="date">Check-in Date</option>
+                <option value="price">Price (Low to High)</option>
+              </select>
+            </div>
+            <button class="btn-refresh" (click)="loadMyBookings()" [disabled]="loadingBookings">
+              {{ loadingBookings ? '⏳ Loading...' : '🔄 Refresh' }}
+            </button>
+          </div>
         </div>
 
         <div class="loading-state" *ngIf="loadingBookings && bookings.length === 0">
@@ -498,6 +510,35 @@ interface Booking {
             <div class="booking-hotel">
               <h3>{{booking.hotel.name}}</h3>
               <p class="hotel-location">📍 {{booking.hotel.city}}</p>
+              <div class="distance-section">
+                <div class="distance-display" *ngIf="booking.distance !== undefined && booking.distance !== null">
+                  <span class="distance-badge">🚗 {{booking.distance}} km away</span>
+                </div>
+                <div class="distance-input-group" *ngIf="booking.distance === undefined || booking.distance === null || editingDistance === booking.id">
+                  <input 
+                    type="number" 
+                    class="distance-input" 
+                    [value]="tempDistance[booking.id] || ''"
+                    (input)="tempDistance[booking.id] = +$any($event.target).value"
+                    placeholder="Distance in km"
+                    min="0"
+                    step="0.1"
+                  >
+                  <button 
+                    class="btn-save-distance" 
+                    (click)="saveDistance(booking.id, tempDistance[booking.id])"
+                  >
+                    💾
+                  </button>
+                </div>
+                <button 
+                  class="btn-edit-distance" 
+                  *ngIf="booking.distance !== undefined && booking.distance !== null && editingDistance !== booking.id"
+                  (click)="editingDistance = booking.id; tempDistance[booking.id] = booking.distance"
+                >
+                  ✏️ Edit
+                </button>
+              </div>
             </div>
 
             <div class="booking-details">
@@ -1151,12 +1192,60 @@ interface Booking {
       justify-content: space-between;
       align-items: center;
       margin-bottom: 25px;
+      flex-wrap: wrap;
+      gap: 15px;
     }
 
     .section-header h2 {
       font-size: 28px;
       color: #333;
       margin: 0;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .sort-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: white;
+      padding: 8px 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .sort-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #666;
+      white-space: nowrap;
+    }
+
+    .sort-select {
+      padding: 8px 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+      background: white;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      outline: none;
+    }
+
+    .sort-select:hover {
+      border-color: #667eea;
+    }
+
+    .sort-select:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
 
     .btn-refresh {
@@ -1314,6 +1403,85 @@ interface Booking {
       margin: 0;
       font-size: 14px;
       color: #666;
+    }
+
+    .distance-section {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .distance-display {
+      flex: 1;
+    }
+
+    .distance-badge {
+      display: inline-block;
+      padding: 6px 12px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .distance-input-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex: 1;
+    }
+
+    .distance-input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      outline: none;
+      transition: all 0.3s ease;
+      min-width: 100px;
+    }
+
+    .distance-input:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .btn-save-distance {
+      padding: 8px 12px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-save-distance:hover {
+      background: #218838;
+      transform: scale(1.1);
+    }
+
+    .btn-edit-distance {
+      padding: 6px 12px;
+      background: #ffc107;
+      color: #333;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-edit-distance:hover {
+      background: #e0a800;
+      transform: translateY(-2px);
     }
 
     .booking-details {
@@ -1881,6 +2049,11 @@ export class DashboardComponent implements OnInit {
   loadingBookings = false;
   selectedBooking: Booking | null = null;
 
+  // Sort and distance management
+  sortOption: string = 'default';
+  editingDistance: number | null = null;
+  tempDistance: { [key: number]: number } = {};
+
   private apiUrl = 'http://localhost:8080/api/bookings';
 
   constructor(
@@ -1946,6 +2119,9 @@ export class DashboardComponent implements OnInit {
             discount 
           });
           
+          // Get stored distance from sessionStorage
+          const storedDistance = this.getStoredDistance(booking.id);
+          
           return {
             id: booking.id || booking.bookingId,
             bookingReference: booking.bookingReference || `BK-${booking.id}`,
@@ -1958,12 +2134,17 @@ export class DashboardComponent implements OnInit {
             totalPrice: basePrice + taxAmount,  // Show total with tax
             finalPrice: customerPays,           // Amount customer actually paid
             discountAmount: discount,
+            distance: storedDistance,
             hotel: hotelData
           };
         });
         
         console.log('=== TRANSFORMED BOOKINGS ===');
         console.log(JSON.stringify(this.bookings, null, 2));
+        
+        // Apply sorting based on current sort option
+        this.sortBookings();
+        
         this.loadingBookings = false;
       },
       error: (error) => {
@@ -2431,5 +2612,87 @@ Generated on: ${new Date().toLocaleString()}
       console.error('Error retrieving meal plan:', error);
       return null;
     }
+  }
+
+  // Distance Management
+  saveDistance(bookingId: number, distance: number): void {
+    const distanceNum = typeof distance === 'number' ? distance : parseFloat(String(distance));
+    
+    if (isNaN(distanceNum) || distanceNum < 0) {
+      alert('❌ Please enter a valid distance!\n\n(Negative distances only work in science fiction)');
+      return;
+    }
+
+    try {
+      const storageKey = `booking_distance_${bookingId}`;
+      sessionStorage.setItem(storageKey, distanceNum.toString());
+      
+      // Update the booking in the array
+      const booking = this.bookings.find(b => b.id === bookingId);
+      if (booking) {
+        booking.distance = distanceNum;
+      }
+      
+      this.editingDistance = null;
+      this.tempDistance[bookingId] = distanceNum;
+      
+      // Re-sort if distance sorting is active
+      if (this.sortOption === 'distance') {
+        this.sortBookings();
+      }
+      
+      alert(`✅ Distance saved: ${distanceNum} km\n\n(Hope you measured correctly, we're trusting you here)`);
+    } catch (error) {
+      console.error('Error saving distance:', error);
+      alert('❌ Failed to save distance. Try again!');
+    }
+  }
+
+  getStoredDistance(bookingId: number): number | undefined {
+    try {
+      const storageKey = `booking_distance_${bookingId}`;
+      const data = sessionStorage.getItem(storageKey);
+      return data ? parseFloat(data) : undefined;
+    } catch (error) {
+      console.error('Error retrieving distance:', error);
+      return undefined;
+    }
+  }
+
+  sortBookings(): void {
+    if (!this.bookings || this.bookings.length === 0) return;
+
+    switch (this.sortOption) {
+           case 'distance':
+        // Sort by distance - bookings without distance go to the end
+        this.bookings.sort((a, b) => {
+          const distanceA = (a.distance !== undefined && a.distance !== null) ? a.distance : Number.MAX_VALUE;
+          const distanceB = (b.distance !== undefined && b.distance !== null) ? b.distance : Number.MAX_VALUE;
+          return distanceA - distanceB;
+        });
+        break;
+
+      case 'date':
+        // Sort by check-in date
+        this.bookings.sort((a, b) => {
+          return new Date(a.checkInDate).getTime() - new Date(b.checkInDate).getTime();
+        });
+        break;
+
+      case 'price':
+        // Sort by price (low to high)
+        this.bookings.sort((a, b) => {
+          return a.finalPrice - b.finalPrice;
+        });
+        break;
+
+      case 'default':
+      default:
+        // Sort by booking ID (descending - newest first)
+        this.bookings.sort((a, b) => b.id - a.id);
+        break;
+    }
+
+    console.log(`Sorted bookings by: ${this.sortOption}`, this.bookings);
   }
 }
