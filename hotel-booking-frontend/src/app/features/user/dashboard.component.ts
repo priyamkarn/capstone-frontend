@@ -598,6 +598,9 @@ interface Booking {
         </div>
       </div>
     </div>
+    <button class="btn-modal-secondary" (click)="alertRefundPolicy()">
+  View Refund Policy
+</button>
   `,
   styles: [`
     .dashboard-container {
@@ -2658,7 +2661,17 @@ Generated on: ${new Date().toLocaleString()}
       return undefined;
     }
   }
+alertRefundPolicy(): void {
+  alert(`
+Refund Policy 📜
 
+• Cancel more than 7 days before check-in → Full Refund (100%)
+• Cancel 3–7 days before check-in → 50% Refund
+• Cancel less than 3 days before check-in → No Refund
+
+(Note: Refunds processed within 5–7 business days. Hotel policies may vary slightly.)
+  `);
+}
   sortBookings(): void {
     if (!this.bookings || this.bookings.length === 0) return;
 
