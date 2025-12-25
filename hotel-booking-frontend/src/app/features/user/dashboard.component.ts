@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { AuthService } from '../../core/services/auth.service';
 import { User } from '../../core/models/model';
-import { FormsModule } from '@angular/forms';          // ← ADD THIS IMPORT
+import { FormsModule } from '@angular/forms';         
 interface Booking {
   id: number;
   bookingReference: string;

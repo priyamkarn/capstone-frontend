@@ -26,6 +26,20 @@ interface Hotel {
   photos: string[];
 }
 
+interface Review {
+  id?: number;
+  hotelId: number;
+  userId: number;
+  bookingId?: number;
+  userEmail?: string;
+  userName: string;
+  rating: number;
+  comment: string;
+  verified?: boolean;
+  createdAt?: string;
+  reviewDate?: string;
+}
+
 @Component({
   selector: 'app-home',
   standalone: true,
@@ -44,6 +58,7 @@ interface Hotel {
             (keyup.enter)="search()">
           <button (click)="search()" class="btn-search">Search Hotels</button>
           <button (click)="callHotel()" class="btn-call">📞 Call Hotel</button>
+          <button (click)="contactViaChat()" class="btn-chat">💬 Contact via Chat</button>
         </div>
       </div>
 
@@ -52,6 +67,87 @@ interface Hotel {
         <div class="modal-content" (click)="$event.stopPropagation()">
           <span class="close" (click)="showCallModal = false">&times;</span>
           <div class="contact-info" [innerHTML]="contactMessage"></div>
+        </div>
+      </div>
+
+      <!-- Contact via Chat Modal -->
+      <div class="modal" *ngIf="showChatModal" (click)="showChatModal = false">
+        <div class="modal-content" (click)="$event.stopPropagation()">
+          <span class="close" (click)="showChatModal = false">&times;</span>
+          <div class="contact-info">
+            <h3 style="margin-bottom: 20px; color: #333;">Contact Us via Chat</h3>
+            <p style="margin-bottom: 15px;">You can reach out to our support team at:</p>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div class="email-item">📧 priyam@hotel.com</div>
+              <div class="email-item">📧 saurav@hotel.com</div>
+              <div class="email-item">📧 shresthi@hotel.com</div>
+              <div class="email-item">📧 naru@hotel.com</div>
+              <div class="email-item">📧 abin@hotel.com</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Review Modal -->
+      <div class="modal" *ngIf="showAddReviewModal" (click)="showAddReviewModal = false">
+        <div class="modal-content review-modal" (click)="$event.stopPropagation()">
+          <span class="close" (click)="closeAddReviewModal()">&times;</span>
+          <h3 style="margin-bottom: 20px; color: #333;">Add Hotel Review</h3>
+          <form class="review-form" (ngSubmit)="submitReview()">
+            <div class="form-group">
+              <label>Hotel:</label>
+              <input type="text" [value]="selectedHotel?.name" disabled class="form-input">
+            </div>
+            <div class="form-group">
+              <label>Rating (1-5):</label>
+              <div class="star-input">
+                <span *ngFor="let star of [1,2,3,4,5]" 
+                      (click)="newReview.rating = star"
+                      [class.active]="star <= newReview.rating"
+                      class="star-btn">⭐</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Your Review:</label>
+              <textarea [(ngModel)]="newReview.comment" name="comment" 
+                        required class="form-textarea" rows="4" 
+                        placeholder="Share your experience..."></textarea>
+            </div>
+            <div class="form-actions">
+              <button type="button" (click)="closeAddReviewModal()" class="btn-cancel">Cancel</button>
+              <button type="submit" class="btn-submit">Submit Review</button>
+            </div>
+            <div *ngIf="reviewMessage" [class]="reviewMessageType === 'success' ? 'success-message' : 'error-message'">
+              {{reviewMessage}}
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Show Reviews Modal -->
+      <div class="modal" *ngIf="showReviewsModal" (click)="showReviewsModal = false">
+        <div class="modal-content reviews-modal" (click)="$event.stopPropagation()">
+          <span class="close" (click)="showReviewsModal = false">&times;</span>
+          <h3 style="margin-bottom: 20px; color: #333;">Hotel Reviews - {{selectedHotel?.name}}</h3>
+          
+          <div *ngIf="loadingReviews" class="loading-reviews">Loading reviews...</div>
+          
+          <div *ngIf="!loadingReviews && hotelReviews.length === 0" class="no-reviews">
+            No reviews yet for this hotel. Be the first to review!
+          </div>
+          
+          <div class="reviews-list" *ngIf="!loadingReviews && hotelReviews.length > 0">
+            <div class="review-item" *ngFor="let review of hotelReviews">
+              <div class="review-header">
+                <div>
+                  <strong>{{review.userName}}</strong>
+                  <div class="review-rating">{{getStars(review.rating)}}</div>
+                </div>
+                <span class="review-date">{{formatDate(review.reviewDate)}}</span>
+              </div>
+              <p class="review-comment">{{review.comment}}</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -144,7 +240,10 @@ interface Hotel {
                     <span *ngIf="hotel.contactEmail" title="{{hotel.contactEmail}}">✉️</span>
                   </div>
                 </div>
-                <button class="btn-book">View Details</button>
+                <div class="hotel-actions">
+                  <button (click)="openAddReview(hotel)" class="btn-review">✍️ Add Review</button>
+                  <button (click)="showHotelReviews(hotel)" class="btn-show-reviews">📝 Reviews</button>
+                </div>
               </div>
             </div>
           </div>
@@ -196,17 +295,20 @@ interface Hotel {
     .search-box {
       display: flex;
       gap: 10px;
-      max-width: 700px;
+      max-width: 900px;
       margin: 0 auto;
+      flex-wrap: wrap;
+      justify-content: center;
     }
     .search-input {
       flex: 1;
+      min-width: 250px;
       padding: 15px;
       border: none;
       border-radius: 5px;
       font-size: 16px;
     }
-    .btn-search, .btn-call {
+    .btn-search, .btn-call, .btn-chat {
       padding: 15px 30px;
       background: #28a745;
       color: white;
@@ -220,11 +322,17 @@ interface Hotel {
     .btn-call {
       background: #007bff;
     }
+    .btn-chat {
+      background: #17a2b8;
+    }
     .btn-search:hover {
       background: #218838;
     }
     .btn-call:hover {
       background: #0056b3;
+    }
+    .btn-chat:hover {
+      background: #138496;
     }
 
     /* Modal Styles */
@@ -250,6 +358,12 @@ interface Hotel {
       overflow-y: auto;
       position: relative;
     }
+    .review-modal {
+      max-width: 500px;
+    }
+    .reviews-modal {
+      max-width: 700px;
+    }
     .close {
       position: absolute;
       right: 20px;
@@ -265,6 +379,145 @@ interface Hotel {
       white-space: pre-line;
       line-height: 1.8;
       color: #333;
+    }
+    .email-item {
+      background: #f8f9fa;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 16px;
+      color: #333;
+      border-left: 4px solid #17a2b8;
+    }
+
+    /* Review Form Styles */
+    .review-form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .form-group label {
+      font-weight: 600;
+      color: #333;
+    }
+    .form-input, .form-textarea {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .form-input:disabled {
+      background: #f5f5f5;
+      cursor: not-allowed;
+    }
+    .form-textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+    .star-input {
+      display: flex;
+      gap: 5px;
+      font-size: 24px;
+    }
+    .star-btn {
+      cursor: pointer;
+      opacity: 0.3;
+      transition: opacity 0.2s;
+    }
+    .star-btn.active {
+      opacity: 1;
+    }
+    .star-btn:hover {
+      opacity: 0.7;
+    }
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 10px;
+    }
+    .btn-cancel {
+      padding: 10px 20px;
+      background: #6c757d;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-cancel:hover {
+      background: #5a6268;
+    }
+    .btn-submit {
+      padding: 10px 20px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-submit:hover {
+      background: #218838;
+    }
+    .success-message {
+      padding: 10px;
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+    .error-message {
+      padding: 10px;
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+
+    /* Reviews List Styles */
+    .loading-reviews, .no-reviews {
+      text-align: center;
+      padding: 30px;
+      color: #666;
+    }
+    .reviews-list {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .review-item {
+      padding: 15px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background: #f9f9f9;
+    }
+    .review-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+    .review-rating {
+      font-size: 14px;
+      color: #ff9800;
+      margin-top: 4px;
+    }
+    .review-date {
+      font-size: 12px;
+      color: #999;
+    }
+    .review-comment {
+      color: #555;
+      line-height: 1.6;
+      margin: 0;
     }
 
     /* Filters Section */
@@ -418,8 +671,8 @@ interface Hotel {
     }
     .hotel-footer {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      flex-direction: column;
+      gap: 10px;
       padding-top: 15px;
       border-top: 1px solid #eee;
     }
@@ -436,17 +689,31 @@ interface Hotel {
     .contact-icons span {
       cursor: help;
     }
-    .btn-book {
-      padding: 10px 25px;
-      background: #667eea;
+    .hotel-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .btn-review, .btn-show-reviews {
+      flex: 1;
+      min-width: 120px;
+      padding: 10px 15px;
+      background: #ff9800;
       color: white;
       border: none;
       border-radius: 5px;
       cursor: pointer;
       font-weight: 600;
+      font-size: 13px;
       transition: background 0.3s ease;
     }
-    .btn-book:hover {
+    .btn-show-reviews {
+      background: #667eea;
+    }
+    .btn-review:hover {
+      background: #e68900;
+    }
+    .btn-show-reviews:hover {
       background: #5568d3;
     }
 
@@ -481,11 +748,20 @@ interface Hotel {
       .search-box {
         flex-direction: column;
       }
+      .search-input {
+        min-width: 100%;
+      }
       .filters-grid {
         grid-template-columns: 1fr;
       }
       .hotels-grid {
         grid-template-columns: 1fr;
+      }
+      .hotel-actions {
+        flex-direction: column;
+      }
+      .btn-review, .btn-show-reviews {
+        width: 100%;
       }
     }
   `]
@@ -495,7 +771,13 @@ export class HomeComponent implements OnInit {
   showResults = false;
   loading = false;
   showCallModal = false;
+  showChatModal = false;
+  showAddReviewModal = false;
+  showReviewsModal = false;
+  loadingReviews = false;
   contactMessage = '';
+  reviewMessage = '';
+  reviewMessageType: 'success' | 'error' = 'success';
 
   // Filter properties
   filterStarRating = '';
@@ -506,13 +788,24 @@ export class HomeComponent implements OnInit {
   // Hotels data
   allHotels: Hotel[] = [];
   filteredHotels: Hotel[] = [];
+  selectedHotel: Hotel | null = null;
+
+  // Review data
+  hotelReviews: Review[] = [];
+  newReview: Review = {
+    hotelId: 0,
+    userId: 0,
+    userName: '',
+    rating: 5,
+    comment: ''
+  };
 
   private apiUrl = 'http://localhost:8080/api/hotels';
+  private reviewApiUrl = 'http://localhost:8080/api/reviews';
 
   constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
-    // Load all hotels on init
     this.loadAllHotels();
   }
 
@@ -539,7 +832,6 @@ export class HomeComponent implements OnInit {
     this.loading = true;
     this.showResults = true;
     
-    // Try general search first
     this.http.get<Hotel[]>(`${this.apiUrl}/search?query=${this.searchQuery.trim()}`).subscribe({
       next: (data) => {
         this.allHotels = data;
@@ -557,18 +849,15 @@ export class HomeComponent implements OnInit {
   applyFilters(): void {
     let filtered = [...this.allHotels];
 
-    // Filter by star rating
     if (this.filterStarRating) {
       const starRating = parseInt(this.filterStarRating);
       filtered = filtered.filter(h => h.starRating === starRating);
     }
 
-    // Filter by property type
     if (this.filterPropertyType) {
       filtered = filtered.filter(h => h.propertyType === this.filterPropertyType);
     }
 
-    // Filter by min rating
     if (this.filterMinRating) {
       filtered = filtered.filter(h => h.averageRating >= this.filterMinRating!);
     }
@@ -617,6 +906,103 @@ export class HomeComponent implements OnInit {
         this.contactMessage = 'Error loading contact information. Please try again.';
         this.showCallModal = true;
       }
+    });
+  }
+
+  contactViaChat(): void {
+    this.showChatModal = true;
+  }
+
+  openAddReview(hotel: Hotel): void {
+    this.selectedHotel = hotel;
+    this.newReview = {
+      hotelId: hotel.id,
+      userId: 0,
+      userName: '',
+      rating: 5,
+      comment: ''
+    };
+    this.reviewMessage = '';
+    this.showAddReviewModal = true;
+  }
+
+  closeAddReviewModal(): void {
+    this.showAddReviewModal = false;
+    this.selectedHotel = null;
+    this.reviewMessage = '';
+  }
+
+  submitReview(): void {
+    if (!this.newReview.comment || !this.newReview.rating) {
+      this.reviewMessage = 'Please fill in all fields';
+      this.reviewMessageType = 'error';
+      return;
+    }
+
+    // Send data matching backend expectations (user comes from security context)
+    const reviewData = {
+      hotel: {
+        id: this.newReview.hotelId
+      },
+      rating: this.newReview.rating,
+      comment: this.newReview.comment
+    };
+
+    this.http.post<Review>(this.reviewApiUrl, reviewData, { withCredentials: true }).subscribe({
+      next: (response) => {
+        this.reviewMessage = 'Review submitted successfully!';
+        this.reviewMessageType = 'success';
+        setTimeout(() => {
+          this.closeAddReviewModal();
+        }, 2000);
+      },
+      error: (error) => {
+        console.error('Error submitting review:', error);
+        let errorMsg = 'Failed to submit review. Please try again.';
+        
+        if (error.status === 401 || error.status === 403) {
+          errorMsg = 'Please log in to submit a review.';
+        } else if (error.error?.error?.includes('User not found')) {
+          errorMsg = 'User session not found. Please log in again.';
+        } else if (error.error?.error?.includes('already reviewed')) {
+          errorMsg = 'You have already reviewed this hotel/booking.';
+        } else if (error.error?.error) {
+          errorMsg = error.error.error;
+        } else if (error.error?.message) {
+          errorMsg = error.error.message;
+        }
+        
+        this.reviewMessage = errorMsg;
+        this.reviewMessageType = 'error';
+      }
+    });
+  }
+
+  showHotelReviews(hotel: Hotel): void {
+    this.selectedHotel = hotel;
+    this.showReviewsModal = true;
+    this.loadingReviews = true;
+
+    this.http.get<Review[]>(`${this.reviewApiUrl}/hotel/${hotel.id}`).subscribe({
+      next: (reviews) => {
+        this.hotelReviews = reviews;
+        this.loadingReviews = false;
+      },
+      error: (error) => {
+        console.error('Error loading reviews:', error);
+        this.hotelReviews = [];
+        this.loadingReviews = false;
+      }
+    });
+  }
+
+  formatDate(dateString: string | undefined): string {
+    if (!dateString) return 'Just now';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
     });
   }
 
